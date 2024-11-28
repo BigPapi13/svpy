@@ -6,6 +6,10 @@ writefile = None
 
 def build(input_directory="src", output_directory="build", plugins: list = []):
     files = read_dir(input_directory)
+
+    if not os.path.exists(output_directory) and output_directory != "":
+        os.makedirs(output_directory)
+
     for f in files:
         f.process(output_directory, plugins)
 
@@ -50,7 +54,7 @@ class SVFile:
 
         # Import all plugins
         for plugin in plugins:
-            tempfile.write("from " + plugin + " import *\n")
+            tempfile.write("import " + plugin + "\n")
 
         # Paste contents into temp file
         in_block_macro = False
@@ -70,6 +74,9 @@ class SVFile:
             elif line.strip() == "$$$":
                 in_block_macro = True
             else:
+                if iscomment(line):
+                    line = process_line(line)
+
                 # Look for inline macros
                 line = process_inline_macros(line)
 
@@ -101,6 +108,9 @@ def process_inline_macros(line):
     #       Replace second set with + "
     #   2. Contents of macro are passed directly
 
+    if iscomment(line):
+        return line
+
     open_flag = False
     while "$$" in line:
         open_flag = not open_flag
@@ -110,3 +120,8 @@ def process_inline_macros(line):
             line = line.replace("$$", ') + "', 1)
 
     return line
+
+def iscomment(line):
+    if line.strip()[:2] == "//":
+        return True
+    return False
