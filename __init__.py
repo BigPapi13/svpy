@@ -19,14 +19,17 @@ def read_dir(directory="src"):
     file_list = []
 
     for filename in os.listdir(directory):
-        f = SVFile(filename, directory)
-        file_list.append(f)
+        if filename[-3:] == ".sv" or filename[-2:] == ".v":
+            f = SVFile(filename, directory)
+            file_list.append(f)
 
     return file_list
 
-def svwrite(line):
+def svwrite(*args):
     global writefile
-    writefile.write(str(line) + "\n")
+    for line in args:
+        if line != None:
+            writefile.write(str(line))
 
 # System verilog file class
 class SVFile:
@@ -70,18 +73,26 @@ class SVFile:
             elif line.strip()[:2] == "$ ":
                 tempfile.write(line.replace("$ ", ""))  # Get rid of macro signifier and copy contents to output
 
-            # Case 2: Block macro signifier found
+            # Case 3: Block macro signifier found
             elif line.strip() == "$$$":
                 in_block_macro = True
+
+            # Case 4: Normal line (still need to check for inline macros)
             else:
                 if iscomment(line):
                     line = process_line(line)
 
-                # Look for inline macros
-                line = process_inline_macros(line)
+                substrings = line.split("$$")
+                
+                open_flag = False
+                for string in substrings:
+                    if not open_flag:  # Normal text
+                        tempfile.write(f"svwrite(\"{string}\")".replace("\n", "\\n") + "\n")
+                    else: # Inline macro
+                        tempfile.write(f"svwrite({string})" + "\n")
+                        
 
-                # Just pass the line as an svwrite (basically passes directly to final file)
-                tempfile.write(f"svwrite(\"{line[:-1]}\")\n")
+                    open_flag = not open_flag
                 
         tempfile.write("svpy.writefile.close()")
         tempfile.close()
@@ -101,25 +112,6 @@ def process_line(line):
     line = line.replace('"', '\\"')
     return line
 
-def process_inline_macros(line):
-    ## Process:
-    #   1. If a $$ is found, begin inline macro
-    #       Replace first one with " +
-    #       Replace second set with + "
-    #   2. Contents of macro are passed directly
-
-    if iscomment(line):
-        return line
-
-    open_flag = False
-    while "$$" in line:
-        open_flag = not open_flag
-        if open_flag:
-            line = line.replace("$$", '" + str(', 1)
-        else:
-            line = line.replace("$$", ') + "', 1)
-
-    return line
 
 def iscomment(line):
     if line.strip()[:2] == "//":
